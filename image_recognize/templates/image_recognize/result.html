@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analyse Détaillée - Reconnaissance d'Images</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 2rem 0;
+        }
+        
+        .main-container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header-section {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+        
+        .analysis-tabs {
+            border-bottom: 3px solid #667eea;
+        }
+        
+        .nav-pills .nav-link {
+            border-radius: 25px;
+            margin: 0 5px;
+            transition: all 0.3s ease;
+        }
+        
+        .nav-pills .nav-link.active {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .confidence-bar {
+            height: 30px;
+            border-radius: 15px;
+            position: relative;
+            overflow: hidden;
+            background: #f8f9fa;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .confidence-fill {
+            height: 100%;
+            border-radius: 15px;
+            background: linear-gradient(90deg, #28a745, #20c997, #17a2b8);
+            transition: width 1s ease-out;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+        
+        .tag-card {
+            background: white;
+            border: none;
+            border-radius: 15px;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            margin-bottom: 1rem;
+        }
+        
+        .tag-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 30px rgba(0,0,0,0.15);
+        }
+        
+        .category-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 0.8rem;
+        }
+        
+        .image-preview {
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+            transition: transform 0.3s ease;
+        }
+        
+        .image-preview:hover {
+            transform: scale(1.02);
+        }
+        
+        .stats-card {
+            background: linear-gradient(135deg, #fff, #f8f9fa);
+            border: none;
+            border-radius: 15px;
+            padding: 1.5rem;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        }
+        
+        .stats-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin: 20px 0;
+        }
+        
+        .summary-box {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 2rem;
+            border-radius: 15px;
+            margin: 2rem 0;
+        }
+        
+        .semantic-group {
+            background: rgba(102, 126, 234, 0.1);
+            border-left: 4px solid #667eea;
+            padding: 1rem;
+            margin: 0.5rem 0;
+            border-radius: 0 10px 10px 0;
+        }
+        
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.8s ease-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="main-container fade-in">
+            <!-- En-tête -->
+            <div class="header-section">
+                <h1><i class="fas fa-brain me-2"></i>Analyse Intelligente</h1>
+                <p class="lead mb-0">Résultats détaillés de la reconnaissance d'images</p>
+            </div>
+            
+            <div class="p-4">
+                <!-- Statistiques rapides -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="stats-card">
+                            <div class="stats-number">{{ results.all.count }}</div>
+                            <div class="text-muted">Tags détectés</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stats-card">
+                            <div class="stats-number">{{ image.analysis_confidence|floatformat:0 }}%</div>
+                            <div class="text-muted">Confiance moyenne</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stats-card">
+                            <div class="stats-number">{{ confidence_stats.high }}</div>
+                            <div class="text-muted">Haute confiance</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stats-card">
+                            <div class="stats-number">{{ results.primary.count }}</div>
+                            <div class="text-muted">Tags principaux</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Image et résumé -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="text-center">
+                            <img src="{{ image.image.url }}" alt="Image analysée" 
+                                 class="img-fluid image-preview" style="max-height: 400px;">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="summary-box">
+                            <h4><i class="fas fa-lightbulb me-2"></i>Résumé de l'analyse</h4>
+                            <p>{{ analysis_summary }}</p>
+                            
+                            {% if semantic_analysis %}
+                            <h5 class="mt-3">Thèmes identifiés :</h5>
+                            {% for theme, score in semantic_analysis %}
+                            <div class="semantic-group">
+                                <strong>{{ theme|title }}</strong>
+                                <span class="badge bg-light text-dark ms-2">{{ score }} éléments</span>
+                            </div>
+                            {% endfor %}
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Graphique de distribution des confiances -->
+                <div class="row mb-4">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5><i class="fas fa-chart-pie me-2"></i>Distribution des Confiances</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="chart-container">
+                                    <canvas id="confidenceChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Onglets d'analyse -->
+                <ul class="nav nav-pills analysis-tabs mb-4" id="analysisTabs" role="tablist">
+                    <li class="nav-item">
+                        <button class="nav-link active" id="all-tab" data-bs-toggle="pill" data-bs-target="#all-results">
+                            <i class="fas fa-list me-2"></i>Tous les résultats ({{ results.all.count }})
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" id="objects-tab" data-bs-toggle="pill" data-bs-target="#objects-results">
+                            <i class="fas fa-cube me-2"></i>Objets ({{ results.objects.count }})
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" id="scenes-tab" data-bs-toggle="pill" data-bs-target="#scenes-results">
+                            <i class="fas fa-image me-2"></i>Scènes ({{ results.scenes.count }})
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" id="colors-tab" data-bs-toggle="pill" data-bs-target="#colors-results">
+                            <i class="fas fa-palette me-2"></i>Couleurs ({{ results.colors.count }})
+                        </button>
+                    </li>
+                </ul>
+                
+                <!-- Contenu des onglets -->
+                <div class="tab-content" id="analysisTabsContent">
+                    <!-- Tous les résultats -->
+                    <div class="tab-pane fade show active" id="all-results">
+                        <div class="row">
+                            {% for result in results.all %}
+                            <div class="col-md-6 mb-3">
+                                <div class="tag-card card position-relative">
+                                    <span class="category-badge badge bg-secondary">{{ result.category|default:"général" }}</span>
+                                    <div class="card-body">
+                                        <h6 class="card-title">
+                                            <i class="fas fa-tag me-2 text-primary"></i>{{ result.label }}
+                                        </h6>
+                                        <div class="confidence-bar mb-2">
+                                            <div class="confidence-fill" style="width: {{ result.confidence }}%;">
+                                                {{ result.confidence|floatformat:1 }}%
+                                            </div>
+                                        </div>
+                                        <small class="text-muted">
+                                            Niveau de confiance : 
+                                            {% if result.confidence >= 80 %}
+                                                <span class="text-success"><i class="fas fa-check-circle"></i> Élevé</span>
+                                            {% elif result.confidence >= 50 %}
+                                                <span class="text-warning"><i class="fas fa-exclamation-circle"></i> Moyen</span>
+                                            {% else %}
+                                                <span class="text-danger"><i class="fas fa-question-circle"></i> Faible</span>
+                                            {% endif %}
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                            {% empty %}
+                            <div class="col-12 text-center">
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle me-2"></i>Aucun résultat trouvé dans cette catégorie.
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    <!-- Objets -->
+                    <div class="tab-pane fade" id="objects-results">
+                        <div class="row">
+                            {% for result in results.objects %}
+                            <div class="col-md-4 mb-3">
+                                <div class="tag-card card">
+                                    <div class="card-body text-center">
+                                        <i class="fas fa-cube fa-2x text-primary mb-2"></i>
+                                        <h6 class="card-title">{{ result.label }}</h6>
+                                        <div class="confidence-bar">
+                                            <div class="confidence-fill" style="width: {{ result.confidence }}%;">
+                                                {{ result.confidence|floatformat:1 }}%
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% empty %}
+                            <div class="col-12 text-center">
+                                <div class="alert alert-info">
+                                    <i class="fas fa-cube me-2"></i>Aucun objet spécifique détecté.
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    <!-- Scènes -->
+                    <div class="tab-pane fade" id="scenes-results">
+                        <div class="row">
+                            {% for result in results.scenes %}
+                            <div class="col-md-6 mb-3">
+                                <div class="tag-card card">
+                                    <div class="card-body">
+                                        <i class="fas fa-image text-success me-2"></i>
+                                        <h6 class="card-title d-inline">{{ result.label }}</h6>
+                                        <div class="confidence-bar mt-2">
+                                            <div class="confidence-fill" style="width: {{ result.confidence }}%;">
+                                                {{ result.confidence|floatformat:1 }}%
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% empty %}
+                            <div class="col-12 text-center">
+                                <div class="alert alert-info">
+                                    <i class="fas fa-image me-2"></i>Aucune scène détectée.
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    <!-- Couleurs -->
+                    <div class="tab-pane fade" id="colors-results">
+                        <div class="row">
+                            {% for result in results.colors %}
+                            <div class="col-md-3 mb-3 text-center">
+                                <div class="card tag-card p-3">
+                                    <div style="width:50px;height:50px;background:{{ result.label|slice:'8:' }};margin:auto;border-radius:50%;"></div>
+                                    <h6 class="mt-2">{{ result.label }}</h6>
+                                    <small>{{ result.confidence|floatformat:1 }}%</small>
+                                </div>
+                            </div>
+                            {% empty %}
+                            <div class="col-12 text-center">
+                                <div class="alert alert-info">
+                                    <i class="fas fa-palette me-2"></i>Aucune couleur détectée.
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="text-center mt-4">
+        <a href="{% url 'image_recognize:index' %}" class="btn btn-primary">Analyser une autre image</a>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var ctx = document.getElementById('confidenceChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Haute', 'Moyenne', 'Basse'],
+                    datasets: [{
+                        data: [{{ confidence_stats.high }}, {{ confidence_stats.medium }}, {{ confidence_stats.low }}],
+                        /* couleurs par défaut Chart.js */
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'bottom' }
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>
